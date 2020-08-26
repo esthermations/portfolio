@@ -13,4 +13,4 @@ This was a 3D game written for my Computer Graphics course, in 2017. I'm less pr
 
 The shaders are fairly straightforward but are used to procedurally modify the rendered terrain, putting a road down the middle and bumpy grass either side. The fragment shader colours these segments and draws lines down the middle of the road. A simple Phong lighting system is implemented.
 
-![](https://i.imgur.com/vaiofzt.png)
+![Maybe not the most visually pleasing game 😂](https://i.imgur.com/vaiofzt.png)
