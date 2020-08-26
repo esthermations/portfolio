@@ -12,3 +12,5 @@ To facilitate an easier test-driven workflow, I wrote a Python script, Run_Tests
 This was a 3D game written for my Computer Graphics course, in 2017. I'm less proud of the code than the RV32Sim from 2019, but it's quite functional and readable and demonstrates knowledge of concepts important to 3D graphics and game engines. There's plenty of use of GLM for vector maths, mostly for 3D physics and handling the projections in the renderer, and also code hooked up to an open-source Wavefront OBJ parser which turns it all into usable 3D model formats.
 
 The shaders are fairly straightforward but are used to procedurally modify the rendered terrain, putting a road down the middle and bumpy grass either side. The fragment shader colours these segments and draws lines down the middle of the road. A simple Phong lighting system is implemented.
+
+![](https://i.imgur.com/vaiofzt.png)
