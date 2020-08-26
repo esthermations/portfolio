@@ -1,0 +1,132 @@
+#+Title: Assignment 3, Part 2
+#+Subtitle: Computer Graphics (Semester 2, 2017)
+#+Author: Esther O'Keefe, a1667700
+#+Options: toc:nil date:nil
+
+# TODO: Turn this into an actual report on features completed.
+# TODO: Export to =report.pdf=.
+
+* Usage instructions
+
+This program is a simple game where you control a car that drives forwards
+endlessly along a road. The road is about three car-widths wide, and you can
+switch "lanes" by pressing the left and right arrow keys.
+
+As you drive, you will gain speed constantly. When you quit, the program will
+print out your highest speed.
+
+Barrels will spawn randomly along the road and will reset your speed if you hit
+them. The challenge of the game is to dodge barrels to reach a high speed. As
+you get faster, dodging barrels inherently becomes more difficult.
+
+** Controls
+
+- To quit, press =q= or =ESC=.
+- To move left or right, press the left or right arrow keys.
+
+* External files used
+
+All the external files I used were introduced in previous assignments.
+
+- =stb_image.h= to load image files.
+- =tiny_obj_loader.h= to parse OBJ files.
+- =external_files/models/= contains various models and materials provided for
+  the previous assignment.
+- =green.png= was created by me for Assignment 2. It is technically loaded to be
+  applied to the terrain, but is not used as the terrain texture is generated.
+
+
+* Features implemented
+
+** Procedural generation of terrain
+
+To implement the road, rather than acquiring or creating some road models and
+textures, I opted to try and generate them. My implementation is simple and
+ugly, but this feature turned out to be surprisingly straighforward to
+implement.
+
+*** Geometry
+
+To keep the road flat, I simply test against the x-coord in the vertex shader.
+Each non-road terrain vertex has a random height -- that's it.
+
+To give the impression of constant movement, the terrain must appear to not
+change, but move towards the camera. To achieve this, I generate three terrain
+"blocks". When a terrain block goes past the camera, it gets placed after the
+furthest one.
+
+This straightforward system was implemented late in development, and doesn't
+work perfectly, for reasons that I'm sure will be obvious a few hours after I
+submit this assignment.
+
+A less trivial problem related to this "blocks" system is that the edges of the
+blocks don't necessarily meet. This can be corrected in the vertex shader by
+ensuring the edges of the terrain have some constant value, but this isn't an
+ideal solution.
+
+Another issue is implementing normals for randomly generated terrain so that it
+can react to light. Calculating this requires knowledge of the vertices for each
+face, which is inaccessible in the vertex shader.
+
+We could generate the height on the CPU, or perhaps send face information to the
+GPU to solve this problem. I did neither, and just sent normals of $(0, 1, 0)$.
+This causes the terrain to react uniformly to light, making it hard to see the
+details.
+
+*** Textures
+
+Much like with the geometry, I simply test against the x-coord for each
+fragment. Each fragment has a slightly randomised colour, which is ugly, but
+shows that it's generated.
+
+To add some detail, I implemented stripes on the road, again by testing the
+interpolated position for each fragment.
+
+
+** OBJ loading and texture mapping
+
+Because I didn't get OBJ loading working properly for my previous assignment, I
+had to invest some time to fix it here. The main challenges here are
+understanding the OBJ/MTL data formats, and translating the =tinyobj= data
+structures into ones I can use internally.
+
+A strange bug in my previous assignment caused my vertices to be completely
+out-of-order, making wireframe views look very "messy". This turned out to be
+caused by two separate off-by-one errors happening simultaneously. It was a
+confusing bug to track down, but it needed to be solved to get textures applying
+properly.
+
+*** Dealing with multiple materials
+
+A particular challenge encountered was determining how to deal with multiple
+materials on one object. The OBJ format's structure makes this easy to
+implement, since materials are brought in just before faces are defined. I just
+have to store the first and last vertices used by the material, and my mesh is
+broken up accordingly.
+
+Once we have this information, there are multiple ways of telling the GPU which
+material to use for a particular vertex. To keep things straightforward, I opted
+for the simplest solution that could possibly work: to break the VAO up into
+multiple drawcalls, and send the appropriate material values for each group of
+vertices. This is inefficient, but it gets the job done.
+
+*** Correcting texture orientation
+
+For all models used by the program, the texture coordinates stored in the OBJ
+files were rendered upside-down. A quick "fix" to this issue is to reflect the
+texcoord along the Y-axis in the vertex shader.
+
+** Point light
+
+There is a point light in the scene, placed in front of the car. This was
+intended to simulate headlights, but it appears to be too large or bright.
+
+The light's position changes with the car's, but due to the high impact of the
+light, this change is barely noticeable.
+
+** Collision detection
+
+The barrels can collide with the car. This is simple to implement in my game, as
+all entities must appear on one of three "lanes". If two things aren't on the
+same lane, they don't collide. If they are, we need to check the near and far
+z-coords of each model.

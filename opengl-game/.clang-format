@@ -1,0 +1,42 @@
+# -*- mode: yaml -*-
+BasedOnStyle: LLVM
+Language: Cpp
+ColumnLimit: 80
+IndentWidth: 8
+UseTab: Never
+Standard: Auto
+
+AlignEscapedNewlinesLeft: false
+AllowShortIfStatementsOnASingleLine: true
+AllowShortLoopsOnASingleLine: true
+AllowShortCaseLabelsOnASingleLine: true
+AllowShortFunctionsOnASingleLine: All
+AllowShortBlocksOnASingleLine: true
+
+AlignTrailingComments: true
+AlignConsecutiveDeclarations: true
+AlignConsecutiveAssignments: true
+
+# Line breaks
+AlwaysBreakAfterDefinitionReturnType: All
+AlwaysBreakAfterReturnType: None
+BreakBeforeBraces: Linux
+BreakBeforeBinaryOperators: All
+
+SortIncludes: true
+BinPackArguments: true
+BinPackParameters: true
+PointerAlignment: Right
+
+IndentCaseLabels: false
+MaxEmptyLinesToKeep: 1
+
+AccessModifierOffset: -8
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: true
+SpaceInEmptyParentheses: false
+SpacesBeforeTrailingComments: 1
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: true
+SpacesInParentheses: false

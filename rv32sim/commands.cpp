@@ -1,0 +1,356 @@
+/* ****************************************************************
+   RISC-V Instruction Set Simulator
+   Computer Architecture, Semester 1, 2019
+
+   Command interpreter
+
+**************************************************************** */
+
+#include <ctype.h>
+#include <iomanip>
+#include <iostream>
+#include <sstream>
+#include <stdlib.h>
+#include <string>
+
+#include "commands.h"
+#include "memory.h"
+#include "processor.h"
+
+using namespace std;
+
+void command_skip_optional_whitespace( string &command, unsigned int &i ) {
+   while ( i < command.length() && isspace( command[i] ) )
+      i++;
+}
+
+bool command_skip_required_whitespace( string &command, unsigned int &i ) {
+   if ( i == command.length() || !isspace( command[i] ) )
+      return false;
+   i++;
+   while ( i < command.length() && isspace( command[i] ) )
+      i++;
+   return true;
+}
+
+bool command_match_decimal_number( string &command,
+                                   unsigned int &i,
+                                   unsigned int &num ) {
+   unsigned int j = i;
+   while ( j < command.length() && isdigit( command[j] ) )
+      j++;
+   if ( j == i )
+      return false;
+   stringstream( command.substr( i, j - i ) ) >> num;
+   i = j;
+   return true;
+}
+
+bool command_match_hex_number( string &command,
+                               unsigned int &i,
+                               uint32_t &num ) {
+   unsigned int j = i;
+   while ( j < command.length() && isxdigit( command[j] ) )
+      j++;
+   if ( j == i )
+      return false;
+   stringstream( command.substr( i, j - i ) ) >> hex >> num;
+   i = j;
+   return true;
+}
+
+bool command_match_blank( string &command, unsigned int i ) {
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_x( string &command,
+                      unsigned int i,
+                      bool &data_present,
+                      unsigned int &num,
+                      uint32_t &data ) {
+   data_present = false;
+   if ( i == command.length() || command[i] != 'x' )
+      return false;
+   i++;
+   if ( !command_match_decimal_number( command, i, num ) )
+      return false;
+   command_skip_optional_whitespace( command, i );
+   if ( i < command.length() && command[i] == '=' ) {
+      i++;
+      data_present = true;
+      command_skip_optional_whitespace( command, i );
+      if ( !command_match_hex_number( command, i, data ) )
+         return false;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_pc( string &command,
+                       unsigned int i,
+                       bool &address_present,
+                       uint32_t &address ) {
+   address_present = false;
+   if ( i == command.length() || command[i] != 'p' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] != 'c' )
+      return false;
+   i++;
+   command_skip_optional_whitespace( command, i );
+   if ( i < command.length() && command[i] == '=' ) {
+      i++;
+      address_present = true;
+      command_skip_optional_whitespace( command, i );
+      if ( !command_match_hex_number( command, i, address ) )
+         return false;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_m( string &command,
+                      unsigned int i,
+                      bool &data_present,
+                      uint32_t &address,
+                      uint32_t &data ) {
+   data_present = false;
+   if ( i == command.length() || command[i] != 'm' )
+      return false;
+   i++;
+   if ( !command_skip_required_whitespace( command, i ) )
+      return false;
+   if ( !command_match_hex_number( command, i, address ) )
+      return false;
+   command_skip_optional_whitespace( command, i );
+   if ( i < command.length() && command[i] == '=' ) {
+      i++;
+      data_present = true;
+      command_skip_optional_whitespace( command, i );
+      if ( !command_match_hex_number( command, i, data ) )
+         return false;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_dot( string &command,
+                        unsigned int i,
+                        bool &num_present,
+                        unsigned int &num ) {
+   num_present = false;
+   if ( i == command.length() || command[i] != '.' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] == '#' )
+      return true;
+   if ( !command_skip_required_whitespace( command, i ) )
+      return false;
+   if ( command_match_decimal_number( command, i, num ) ) {
+      num_present = true;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_b( string &command,
+                      unsigned int i,
+                      bool &address_present,
+                      uint32_t &address ) {
+   address_present = false;
+   if ( i == command.length() || command[i] != 'b' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] == '#' )
+      return true;
+   if ( !command_skip_required_whitespace( command, i ) )
+      return false;
+   if ( command_match_hex_number( command, i, address ) ) {
+      address_present = true;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_l( string &command, unsigned int i, string &filename ) {
+   unsigned int j;
+   if ( i == command.length() || command[i] != 'l' )
+      return false;
+   i++;
+   if ( !command_skip_required_whitespace( command, i ) )
+      return false;
+   if ( i == command.length() || command[i] != '"' )
+      return false;
+   i++;
+   j = i;
+   while ( j < command.length() && command[j] != '"' )
+      j++;
+   filename = command.substr( i, j - i );
+   i = j;
+   if ( i == command.length() || command[i] != '"' )
+      return false;
+   i++;
+   command_skip_optional_whitespace( command, i );
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_prv( string &command,
+                        unsigned int i,
+                        bool &num_present,
+                        unsigned int &num ) {
+   num_present = false;
+   if ( i == command.length() || command[i] != 'p' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] != 'r' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] != 'v' )
+      return false;
+   i++;
+   command_skip_optional_whitespace( command, i );
+   if ( i < command.length() && command[i] == '=' ) {
+      i++;
+      num_present = true;
+      command_skip_optional_whitespace( command, i );
+      if ( !command_match_decimal_number( command, i, num ) )
+         return false;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+bool command_match_csr( string &command,
+                        unsigned int i,
+                        bool &data_present,
+                        uint32_t &address,
+                        uint32_t &data ) {
+   data_present = false;
+   if ( i == command.length() || command[i] != 'c' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] != 's' )
+      return false;
+   i++;
+   if ( i == command.length() || command[i] != 'r' )
+      return false;
+   i++;
+   if ( !command_skip_required_whitespace( command, i ) )
+      return false;
+   if ( !command_match_hex_number( command, i, address ) )
+      return false;
+   command_skip_optional_whitespace( command, i );
+   if ( i < command.length() && command[i] == '=' ) {
+      i++;
+      data_present = true;
+      command_skip_optional_whitespace( command, i );
+      if ( !command_match_hex_number( command, i, data ) )
+         return false;
+      command_skip_optional_whitespace( command, i );
+   }
+   return i == command.length() || command[i] == '#';
+}
+
+// Command interpreter function
+void interpret_commands( memory *main_memory, processor *cpu, bool verbose ) {
+   (void) verbose;
+
+   string command;
+   unsigned int i;
+   bool address_present, data_present, num_present;
+   uint32_t address, data;
+   unsigned int num;
+   string filename;
+
+   while ( true ) {
+      getline( cin, command ); // Read the next line of input
+      if ( !cin )
+         break; // Exit if end of input file
+      i = 0;
+      command_skip_optional_whitespace( command, i );
+      if ( command_match_blank( command, i ) ) { // Check for blank command
+                                                 // Nothing to do
+      } else if ( command_match_x( command,
+                                   i,
+                                   data_present,
+                                   num,
+                                   data ) ) { // Check for x command
+         if ( num > 31 ) {
+            cout << "Incorrect register number" << endl;
+         } else if ( !data_present ) { // No new value
+            cpu->show_reg( num );      // so just show register value
+         } else {
+            cpu->set_reg( num, data ); // Update register
+         }
+      } else if ( command_match_pc( command,
+                                    i,
+                                    address_present,
+                                    address ) ) { // Check for pc command
+         if ( !address_present ) {                // No new value
+            cpu->show_pc();                       // so just show pc value
+         } else {
+            cpu->set_pc( address ); // Update pc
+         }
+      } else if ( command_match_m( command,
+                                   i,
+                                   data_present,
+                                   address,
+                                   data ) ) { // Check for m command
+         if ( !data_present ) { // No new value, so just show memory word value
+            data = main_memory->read_word( address );
+            cout << setw( 8 ) << setfill( '0' ) << hex << data << endl;
+         } else { // Update memory word
+            main_memory->write_word( address, data, 0xffffffffUL );
+         }
+      } else if ( command_match_dot(
+                    command, i, num_present, num ) ) { // Check for . command
+         if ( !num_present ) {        // No instruction count value
+            cpu->execute( 1, false ); // so just execute one instruction without
+                                      // breakpoint check
+         } else {
+            cpu->execute( num, true ); // Execute specified number of
+                                       // instructions with breakpoint check
+         }
+      } else if ( command_match_b( command,
+                                   i,
+                                   address_present,
+                                   address ) ) { // Check for b command
+         if ( !address_present ) {               // No address value
+            cpu->clear_breakpoint();             // so just clear breakpoint
+         } else {
+            cpu->set_breakpoint( address ); // Set breakpoint at the address
+         }
+      } else if ( command_match_l(
+                    command, i, filename ) ) { // Check for l command
+         uint32_t start_address;
+         if ( main_memory->load_file(
+                filename,
+                start_address ) ) { // Load using the specified file name
+            cpu->set_pc( start_address );
+         }
+      } else if ( command_match_prv(
+                    command, i, num_present, num ) ) { // Check for prv command
+         if ( !num_present ) {                         // No new privilege level
+            cpu->show_prv(); // so just show current privilege level
+         } else if ( num == 0 || num == 3 ) {
+            cpu->set_prv( num ); // Set the current privilege level
+         } else {
+            cout << "Incorrect privilege level" << endl;
+         }
+      } else if ( command_match_csr( command,
+                                     i,
+                                     data_present,
+                                     address,
+                                     data ) ) { // Check for csr command
+         if ( address > 0xfffU ) {
+            cout << "Incorrect CSR number" << endl;
+         } else if ( !data_present ) { // No new value
+            cpu->show_csr( address );  // so just show memory word value
+         } else {
+            cpu->set_csr( address, data ); // Update memory word
+         }
+      } else {
+         cout << "Unrecognized command" << endl;
+      }
+   }
+}
